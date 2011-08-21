@@ -10,14 +10,14 @@ DATETIME_TEMPLATE = "%s %d:%d"
 
 def loop(func):
     def loop_generator(*args, **kwargs):
-        while 1: 
+        while 1:
             yield func(*args, **kwargs)
     return loop_generator
 
 def sequence(func):
     def sequence_generator(*args, **kwargs):
         i = 0
-        while 1: 
+        while 1:
             i += 1
             yield func(i, *args, **kwargs)
     return sequence_generator
@@ -95,34 +95,75 @@ def random_small_integer_maker(field):
     return random_integer_maker(field, low=-1, high=1)
 
 def random_small_positive_integer_maker(field):
-    return random_integer_maker(field, low=0, high=1)    
+    return random_integer_maker(field, low=0, high=1)
 
 def random_positive_integer_maker(field):
-    return random_integer_maker(field, low=0) 
-    
+    return random_integer_maker(field, low=0)
+
 def random_float_maker(field):
     return loop(lambda: random_float())
-    
+
 def random_auto_field_maker(field):
     return loop(lambda: random.randint(1, 2147483647))
 
 def random_float():
     return random.uniform(sys.float_info.min, sys.float_info.max)
-    
+
 def random_ipaddress_maker(field):
     return loop(lambda: "%s.%s.%s.%s" % (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
 
 def random_comma_seperated_integer(max_length):
     if max_length is None:
         max_length = DEFAULT_STRING_LENGTH
-        
+
     max_length = (int)(max_length/2)
     chars=['0','1','2','3','4','5','6','7','8','9']
     return reduce(lambda x,y: "%s,%s" %(x,y), random_string(max_length, chars)).lstrip(',')
-     
+
 def random_comma_seperated_integer_maker(field):
     max_length = getattr(field, 'max_length', DEFAULT_STRING_LENGTH)
     return loop(lambda: random_comma_seperated_integer(max_length))
-    
+
 def random_time_string_maker(field):
     return loop(lambda: random_time_string())
+
+def random_image(field):
+    from PIL import Image, ImageDraw
+    from django.core.files.storage import DefaultStorage
+    import random
+    import uuid
+    import os
+    import errno
+
+    color1 = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+    color2 = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+    color3 = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+    color4 = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+    size = (random.randint(300,900), random.randint(300,900));
+
+    im = Image.new("RGB", size) # create the image
+    draw = ImageDraw.Draw(im)   # create a drawing object that is
+    draw.rectangle([(0,0),((size[0]/2),(size[1]/2))],fill=color1)
+    draw.rectangle([((size[0]/2),0),((size[1]/2),size[0])],fill=color2)
+    draw.rectangle([(0,(size[1]/2)),((size[0]/2),size[1])],fill=color3)
+    draw.rectangle([((size[0]/2),(size[1]/2)),(size[0],size[1])],fill=color4)
+
+    filename = "%s.png" % uuid.uuid4().hex[:10]
+    filename = field.generate_filename(None, filename)
+    storage = DefaultStorage()
+    full_path = storage.path(filename)
+    directory = os.path.dirname(full_path)
+    try:
+        os.makedirs(directory)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise
+    filehandle = storage.open(filename, mode="w")
+    # provided file-like object
+    im.save(filehandle, "PNG")
+
+    return filename # and we"re done!
+
+def random_image_maker(field):
+    return loop(lambda: random_image(field))
+
